@@ -88,7 +88,7 @@ function renderPages() {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = page.layout === 'collage';
-      cb.onchange = () => { page.layout = cb.checked ? 'collage' : 'grid'; scheduleSave(); };
+      cb.onchange = () => { page.layout = cb.checked ? 'collage' : 'grid'; scheduleSave(); render(); };
       collage.append(cb, ' 写真を大きく重ねる(コラージュ)');
       card.appendChild(collage);
     }
@@ -123,6 +123,21 @@ function renderPages() {
       size.value = [0.85, 1, 1.2, 1.4].includes(Number(ph.scale)) ? String(ph.scale) : '1';
       size.onchange = () => { ph.scale = Number(size.value); scheduleSave(); };
       slot.appendChild(size);
+
+      if (page.layout === 'collage' && page.photos.length > 1) {
+        const zSel = document.createElement('select');
+        zSel.className = 'zorder';
+        zSel.title = '重なり順';
+        for (const [v, label] of [['-1', '奥'], ['0', '重なり:標準'], ['1', '手前']]) {
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = label;
+          zSel.appendChild(opt);
+        }
+        zSel.value = ['-1', '0', '1'].includes(String(ph.z)) ? String(ph.z) : '0';
+        zSel.onchange = () => { ph.z = Number(zSel.value); scheduleSave(); };
+        slot.appendChild(zSel);
+      }
 
       const up = miniBtn('↑', i === 0, () => {
         [page.photos[i - 1], page.photos[i]] = [page.photos[i], page.photos[i - 1]];

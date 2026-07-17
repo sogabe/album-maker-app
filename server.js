@@ -29,6 +29,8 @@ const MIN_DPI_WARN = 180;
 
 // コラージュモード: 各写真の枠を拡大し、重なりを許して大きく見せる (ADR-0005 改訂)
 const COLLAGE_ZOOM = 1.3;
+// 縦方向は横より強めに拡大し、紙の上下いっぱいまで使う
+const COLLAGE_ZOOM_V = 1.5;
 const PHOTO_SCALE = { min: 0.7, max: 1.5 }; // 写真ごとのサイズ調整の許容範囲
 
 // ---- フォント (macOS 同梱フォントを埋め込む。無ければ Helvetica にフォールバック) ----
@@ -117,10 +119,10 @@ function containRect(img, box) {
   return { x: box.x + (box.w - w) / 2, y: box.y + (box.h - h) / 2, w, h };
 }
 
-// box を中心基準で factor 倍に拡大し、余白(bounds)からはみ出さない範囲に収める
-function expandBox(box, factor, bounds) {
-  const w = Math.min(box.w * factor, bounds.w);
-  const h = Math.min(box.h * factor, bounds.h);
+// box を中心基準で縦横それぞれ拡大し、余白(bounds)からはみ出さない範囲に収める
+function expandBox(box, factorW, factorH, bounds) {
+  const w = Math.min(box.w * factorW, bounds.w);
+  const h = Math.min(box.h * factorH, bounds.h);
   let x = box.x - (w - box.w) / 2;
   let y = box.y - (h - box.h) / 2;
   x = Math.max(bounds.x, Math.min(x, bounds.x + bounds.w - w));
@@ -198,7 +200,7 @@ async function buildPdf(album) {
     if (collage && photos.length === 2) {
       // 2枚コラージュは大きめの枠を対角(上左・下右)に配置する
       const w = content.w * 0.74;
-      const h = content.h * 0.62;
+      const h = content.h * 0.68;
       boxes = [
         { x: content.x, y: content.y + content.h - h, w, h },
         { x: content.x + content.w - w, y: content.y, w, h },
@@ -207,14 +209,18 @@ async function buildPdf(album) {
 
     const entries = photos.map((ph, i) => {
       // 2枚コラージュは専用ボックスがすでに大きいので COLLAGE_ZOOM を掛けない
-      const zoom = collage && photos.length !== 2 ? COLLAGE_ZOOM : 1;
-      const factor = zoom * Math.min(PHOTO_SCALE.max, Math.max(PHOTO_SCALE.min, Number(ph.scale) || 1));
-      const box = factor === 1 ? boxes[i] : expandBox(boxes[i], factor, content);
-      return { file: ph.file, caption: ph.caption, box };
+      const zoomW = collage && photos.length !== 2 ? COLLAGE_ZOOM : 1;
+      const zoomH = collage && photos.length !== 2 ? COLLAGE_ZOOM_V : 1;
+      const scale = Math.min(PHOTO_SCALE.max, Math.max(PHOTO_SCALE.min, Number(ph.scale) || 1));
+      const fw = zoomW * scale;
+      const fh = zoomH * scale;
+      const box = fw === 1 && fh === 1 ? boxes[i] : expandBox(boxes[i], fw, fh, content);
+      const z = Math.max(-1, Math.min(1, Math.round(Number(ph.z) || 0)));
+      return { file: ph.file, caption: ph.caption, box, z };
     });
-    // コラージュは下の写真から描く。上段が前面に重なり、各写真の下端
-    // (キャプション位置)が覆われずに残る
-    if (collage) entries.sort((a, b) => a.box.y - b.box.y);
+    // コラージュは重なり順(z: 奥 -1 / 標準 0 / 手前 +1)、同順なら下の写真から描く。
+    // 上段が前面に重なり、各写真の下端(キャプション位置)が覆われずに残る
+    if (collage) entries.sort((a, b) => a.z - b.z || a.box.y - b.box.y);
 
     const pendingCaptions = []; // コラージュでは写真が重なるため、キャプションは最後に最前面へ描く
     for (const { file, caption, box } of entries) {
@@ -222,6 +228,12 @@ async function buildPdf(album) {
       const img = await embedPhoto(pdfDoc, file, imgBox.w, imgBox.h);
       if (!img) continue;
       const drawn = containRect(img, imgBox);
+      if (collage) {
+        // 紙の上下いっぱいに広げる: 上半分の枠は上端へ、下半分の枠は下端へ寄せる
+        const boxCenter = box.y + box.h / 2;
+        const contentMid = content.y + content.h / 2;
+        drawn.y = boxCenter > contentMid ? imgBox.y + imgBox.h - drawn.h : imgBox.y;
+      }
       if (collage) {
         // 重なっても写真の輪郭が分かるよう、ポラロイド風の白フチを敷く
         page.drawRectangle({
@@ -304,6 +316,7 @@ app.put('/api/album', (req, res) => {
       file: path.basename(String(ph.file || '')),
       caption: String(ph.caption || ''),
       scale: Math.min(PHOTO_SCALE.max, Math.max(PHOTO_SCALE.min, Number(ph.scale) || 1)),
+      z: Math.max(-1, Math.min(1, Math.round(Number(ph.z) || 0))),
     }));
   }
   saveAlbum(album);
