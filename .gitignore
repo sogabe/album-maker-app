@@ -1,0 +1,5 @@
+node_modules/
+photos/
+.thumbs/
+album.json
+album.pdf

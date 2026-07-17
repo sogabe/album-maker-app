@@ -1,0 +1,22 @@
+{
+  "name": "album-maker-app",
+  "version": "1.0.0",
+  "description": "ホームステイ用の自己紹介アルバムをA4 PDFにするローカルWebアプリ",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "pdf-lib": "^1.17.1",
+    "sharp": "^0.35.3"
+  }
+}

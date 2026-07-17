@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>自己紹介アルバムメーカー</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>自己紹介アルバムメーカー</h1>
+    <div class="toolbar">
+      <span id="save-status" class="status"></span>
+      <button id="reload-photos">写真を再読込</button>
+      <button id="export-pdf" class="primary">PDF を書き出す</button>
+    </div>
+  </header>
+
+  <main>
+    <aside id="library">
+      <h2>写真フォルダ <span id="photo-count"></span></h2>
+      <p class="hint">
+        AirDrop で受け取った写真を <code>photos/</code> フォルダに入れて「写真を再読込」。
+        写真をクリックして選択 → ページの「＋ 追加」で割り当てます。
+      </p>
+      <div id="photo-grid"></div>
+    </aside>
+
+    <section id="pages"></section>
+  </main>
+
+  <div id="export-result" hidden>
+    <div class="dialog">
+      <h3>PDF を書き出しました</h3>
+      <p id="export-summary"></p>
+      <p class="hint">開いて確認し、問題なければこのファイルをコンビニのネットワークプリントに登録してください。</p>
+      <p>
+        <a href="/album.pdf" target="_blank" class="button primary">album.pdf を開く</a>
+        <button id="close-dialog">閉じる</button>
+      </p>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
