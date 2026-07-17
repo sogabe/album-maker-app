@@ -28,7 +28,8 @@ Claude Code からは `.claude/launch.json` の `album-maker` を preview_start 
 ## 固定の制約(勝手に変えない)
 
 - PrintSpec は固定値: A4 縦 / 300dpi / 余白 10mm / PDF 1 ファイル(ADR-0002)。設定項目にしない
-- 1 ページ = 1 テーマ、写真は最大 4 枚、レイアウトは枚数から自動導出(ADR-0005)。レイアウト選択 UI を作らない
+- 1 ページ = 1 テーマ、写真は最大 4 枚、レイアウトは枚数から自動導出(ADR-0005)。レイアウト選択 UI を作らない。
+  許される調整はページ単位のコラージュモード(`Page.layout`)と写真単位の大きさ(`Photo.scale` 0.7〜1.5)のみ(ADR-0005 改訂)
 - キャプションは短い英文のみ(ADR-0003)。PDF 生成時に非 ASCII は除去される(sanitizeText)
 - フォントは macOS 同梱 TTF を埋め込む(タイトル: Arial Rounded Bold / キャプション: Bradley Hand)。ttc は pdf-lib で埋め込めないので使わない
 - 機能追加の判断基準は「今回のアルバム完成に必要か」。汎用化・複数アルバム対応はスコープ外

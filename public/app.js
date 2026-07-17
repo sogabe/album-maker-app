@@ -82,6 +82,17 @@ function renderPages() {
     title.oninput = () => { page.title = title.value; scheduleSave(); };
     card.appendChild(title);
 
+    if (page.photos.length > 1) {
+      const collage = document.createElement('label');
+      collage.className = 'collage-toggle';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = page.layout === 'collage';
+      cb.onchange = () => { page.layout = cb.checked ? 'collage' : 'grid'; scheduleSave(); };
+      collage.append(cb, ' 写真を大きく重ねる(コラージュ)');
+      card.appendChild(collage);
+    }
+
     const slots = document.createElement('div');
     slots.className = 'slots';
     page.photos.forEach((ph, i) => {
@@ -99,6 +110,19 @@ function renderPages() {
       cap.placeholder = 'Caption (English)';
       cap.oninput = () => { ph.caption = cap.value; scheduleSave(); };
       slot.appendChild(cap);
+
+      const size = document.createElement('select');
+      size.className = 'size';
+      size.title = '写真の大きさ';
+      for (const [v, label] of [['0.85', '小'], ['1', '標準'], ['1.2', '大'], ['1.4', '特大']]) {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = label;
+        size.appendChild(opt);
+      }
+      size.value = [0.85, 1, 1.2, 1.4].includes(Number(ph.scale)) ? String(ph.scale) : '1';
+      size.onchange = () => { ph.scale = Number(size.value); scheduleSave(); };
+      slot.appendChild(size);
 
       const up = miniBtn('↑', i === 0, () => {
         [page.photos[i - 1], page.photos[i]] = [page.photos[i], page.photos[i - 1]];

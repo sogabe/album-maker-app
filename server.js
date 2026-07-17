@@ -27,6 +27,10 @@ const JPEG_QUALITY = 82;
 // 配置枠に対する実効解像度がこれを下回ると印刷で粗く見えるため警告する
 const MIN_DPI_WARN = 180;
 
+// コラージュモード: 各写真の枠を拡大し、重なりを許して大きく見せる (ADR-0005 改訂)
+const COLLAGE_ZOOM = 1.3;
+const PHOTO_SCALE = { min: 0.7, max: 1.5 }; // 写真ごとのサイズ調整の許容範囲
+
 // ---- フォント (macOS 同梱フォントを埋め込む。無ければ Helvetica にフォールバック) ----
 const FONT_DIR = '/System/Library/Fonts/Supplemental';
 const TITLE_FONT_FILE = path.join(FONT_DIR, 'Arial Rounded Bold.ttf');
@@ -106,13 +110,21 @@ async function embedPhoto(pdfDoc, name, boxW, boxH) {
   return pdfDoc.embedJpg(buf);
 }
 
-function drawContain(page, img, box) {
+function containRect(img, box) {
   const scale = Math.min(box.w / img.width, box.h / img.height);
   const w = img.width * scale;
   const h = img.height * scale;
-  const x = box.x + (box.w - w) / 2;
-  const y = box.y + (box.h - h) / 2;
-  page.drawImage(img, { x, y, width: w, height: h });
+  return { x: box.x + (box.w - w) / 2, y: box.y + (box.h - h) / 2, w, h };
+}
+
+// box を中心基準で factor 倍に拡大し、余白(bounds)からはみ出さない範囲に収める
+function expandBox(box, factor, bounds) {
+  const w = Math.min(box.w * factor, bounds.w);
+  const h = Math.min(box.h * factor, bounds.h);
+  let x = box.x - (w - box.w) / 2;
+  let y = box.y - (h - box.h) / 2;
+  x = Math.max(bounds.x, Math.min(x, bounds.x + bounds.w - w));
+  y = Math.max(bounds.y, Math.min(y, bounds.y + bounds.h - h));
   return { x, y, w, h };
 }
 
@@ -172,6 +184,7 @@ async function buildPdf(album) {
     if (title) drawCenteredText(page, fontBold, title, TITLE_SIZE, titleY, ink);
 
     const photos = (pageDef.photos || []).slice(0, 4);
+    const collage = pageDef.layout === 'collage' && photos.length > 1;
     const capSize =
       photos.length <= 1 ? CAPTION_SIZE.single : photos.length === 2 ? CAPTION_SIZE.stack : CAPTION_SIZE.grid;
     const captionH = capSize + 12; // 写真の下に確保するキャプション帯
@@ -181,15 +194,47 @@ async function buildPdf(album) {
       w: A4.w - MARGIN * 2,
       h: titleY - mm(4) - MARGIN,
     };
-    const boxes = photoBoxes(photos.length, content);
+    let boxes = photoBoxes(photos.length, content);
+    if (collage && photos.length === 2) {
+      // 2枚コラージュは大きめの枠を対角(上左・下右)に配置する
+      const w = content.w * 0.74;
+      const h = content.h * 0.62;
+      boxes = [
+        { x: content.x, y: content.y + content.h - h, w, h },
+        { x: content.x + content.w - w, y: content.y, w, h },
+      ];
+    }
 
-    for (let i = 0; i < photos.length; i++) {
-      const { file, caption } = photos[i];
-      const box = boxes[i];
+    const entries = photos.map((ph, i) => {
+      // 2枚コラージュは専用ボックスがすでに大きいので COLLAGE_ZOOM を掛けない
+      const zoom = collage && photos.length !== 2 ? COLLAGE_ZOOM : 1;
+      const factor = zoom * Math.min(PHOTO_SCALE.max, Math.max(PHOTO_SCALE.min, Number(ph.scale) || 1));
+      const box = factor === 1 ? boxes[i] : expandBox(boxes[i], factor, content);
+      return { file: ph.file, caption: ph.caption, box };
+    });
+    // コラージュは下の写真から描く。上段が前面に重なり、各写真の下端
+    // (キャプション位置)が覆われずに残る
+    if (collage) entries.sort((a, b) => a.box.y - b.box.y);
+
+    const pendingCaptions = []; // コラージュでは写真が重なるため、キャプションは最後に最前面へ描く
+    for (const { file, caption, box } of entries) {
       const imgBox = { x: box.x, y: box.y + captionH, w: box.w, h: box.h - captionH };
       const img = await embedPhoto(pdfDoc, file, imgBox.w, imgBox.h);
       if (!img) continue;
-      const drawn = drawContain(page, img, imgBox);
+      const drawn = containRect(img, imgBox);
+      if (collage) {
+        // 重なっても写真の輪郭が分かるよう、ポラロイド風の白フチを敷く
+        page.drawRectangle({
+          x: drawn.x - 5,
+          y: drawn.y - 5,
+          width: drawn.w + 10,
+          height: drawn.h + 10,
+          color: rgb(1, 1, 1),
+          borderColor: rgb(0.78, 0.78, 0.8),
+          borderWidth: 0.75,
+        });
+      }
+      page.drawImage(img, { x: drawn.x, y: drawn.y, width: drawn.w, height: drawn.h });
       photoCount++;
       const effDpi = Math.round(img.width / (drawn.w / 72));
       if (effDpi < MIN_DPI_WARN) {
@@ -201,9 +246,26 @@ async function buildPdf(album) {
         while (s > 9 && font.widthOfTextAtSize(cap, s) > box.w) s -= 1;
         const w = font.widthOfTextAtSize(cap, s);
         // キャプションは描画された写真のすぐ下に置く(セル最下部だと写真と離れる)
-        const capY = Math.max(box.y, drawn.y - s - 6);
-        page.drawText(cap, { x: box.x + (box.w - w) / 2, y: capY, size: s, font, color: sub });
+        const capY = Math.max(content.y, drawn.y - s - 8);
+        const capX = box.x + (box.w - w) / 2;
+        if (collage) {
+          pendingCaptions.push({ cap, x: capX, y: capY, s, w });
+        } else {
+          page.drawText(cap, { x: capX, y: capY, size: s, font, color: sub });
+        }
       }
+    }
+    for (const c of pendingCaptions) {
+      // 重なった写真の上でも読めるよう、白いチップを敷いてから描く
+      page.drawRectangle({
+        x: c.x - 5,
+        y: c.y - 4,
+        width: c.w + 10,
+        height: c.s + 8,
+        color: rgb(1, 1, 1),
+        opacity: 0.9,
+      });
+      page.drawText(c.cap, { x: c.x, y: c.y, size: c.s, font, color: sub });
     }
   }
 
@@ -237,9 +299,11 @@ app.put('/api/album', (req, res) => {
   }
   for (const p of album.pages) {
     p.title = String(p.title || '');
+    p.layout = p.layout === 'collage' ? 'collage' : 'grid';
     p.photos = (p.photos || []).slice(0, 4).map((ph) => ({
       file: path.basename(String(ph.file || '')),
       caption: String(ph.caption || ''),
+      scale: Math.min(PHOTO_SCALE.max, Math.max(PHOTO_SCALE.min, Number(ph.scale) || 1)),
     }));
   }
   saveAlbum(album);

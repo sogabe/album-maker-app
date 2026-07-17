@@ -105,6 +105,8 @@ main { display: flex; gap: 16px; padding: 16px; align-items: flex-start; }
   width: 100%;
 }
 .page-card input.title:focus { outline: none; border-bottom-color: #2563eb; }
+.collage-toggle { font-size: 12px; color: #555; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.slot select.size { font-size: 12px; padding: 4px; border: 1px solid #ddd; border-radius: 4px; background: #fff; }
 .slots { display: flex; flex-direction: column; gap: 6px; }
 .slot {
   display: flex;
