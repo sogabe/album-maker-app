@@ -168,6 +168,13 @@ $('#export-pdf').onclick = async () => {
     let summary = `${r.pages}ページ・写真${r.photoCount}枚・${mb}MB`;
     if (r.bytes > 19 * 1024 * 1024) summary += ' ⚠ コンビニのサイズ上限を超える可能性があります';
     $('#export-summary').textContent = summary;
+    const warnList = $('#export-warnings');
+    warnList.innerHTML = '';
+    for (const w of r.warnings || []) {
+      const li = document.createElement('li');
+      li.textContent = `⚠ ${w}`;
+      warnList.appendChild(li);
+    }
     $('#export-result').hidden = false;
   } catch (e) {
     alert(e.message);

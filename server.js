@@ -6,6 +6,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const sharp = require('sharp');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+const fontkit = require('@pdf-lib/fontkit');
 
 const ROOT = __dirname;
 const PHOTOS_DIR = path.join(ROOT, 'photos');
@@ -22,6 +23,16 @@ const mm = (v) => (v * 72) / 25.4;
 const MARGIN = mm(10); // 余白 5mm 以上の要件に対し 10mm で安全側
 const DPI = 300;
 const JPEG_QUALITY = 82;
+// LINE 経由などで再圧縮された低解像度写真の検出しきい値。
+// 配置枠に対する実効解像度がこれを下回ると印刷で粗く見えるため警告する
+const MIN_DPI_WARN = 180;
+
+// ---- フォント (macOS 同梱フォントを埋め込む。無ければ Helvetica にフォールバック) ----
+const FONT_DIR = '/System/Library/Fonts/Supplemental';
+const TITLE_FONT_FILE = path.join(FONT_DIR, 'Arial Rounded Bold.ttf');
+const CAPTION_FONT_FILE = path.join(FONT_DIR, 'Bradley Hand Bold.ttf');
+const TITLE_SIZE = 40;
+const CAPTION_SIZE = { single: 20, stack: 16, grid: 13 };
 
 // ---- 8ページ構成プリセット (ADR-0006) ----
 const PRESET_PAGES = [
@@ -136,23 +147,34 @@ function photoBoxes(count, content) {
   ].slice(0, count);
 }
 
+async function embedFontFile(pdfDoc, file, fallback) {
+  try {
+    return await pdfDoc.embedFont(fs.readFileSync(file), { subset: true });
+  } catch {
+    return await pdfDoc.embedFont(fallback);
+  }
+}
+
 async function buildPdf(album) {
   const pdfDoc = await PDFDocument.create();
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  pdfDoc.registerFontkit(fontkit);
+  const fontBold = await embedFontFile(pdfDoc, TITLE_FONT_FILE, StandardFonts.HelveticaBold);
+  const font = await embedFontFile(pdfDoc, CAPTION_FONT_FILE, StandardFonts.Helvetica);
   const ink = rgb(0.15, 0.15, 0.2);
-  const sub = rgb(0.35, 0.35, 0.42);
+  const sub = rgb(0.3, 0.3, 0.38);
   let photoCount = 0;
+  const warnings = [];
 
   for (const pageDef of album.pages) {
     const page = pdfDoc.addPage([A4.w, A4.h]);
     const title = sanitizeText(pageDef.title);
-    const titleY = A4.h - MARGIN - 26;
-    if (title) drawCenteredText(page, fontBold, title, 26, titleY, ink);
+    const titleY = A4.h - MARGIN - TITLE_SIZE;
+    if (title) drawCenteredText(page, fontBold, title, TITLE_SIZE, titleY, ink);
 
     const photos = (pageDef.photos || []).slice(0, 4);
-    const captionH = photos.length <= 1 ? 30 : photos.length === 2 ? 22 : 18;
-    const capSize = photos.length <= 1 ? 14 : photos.length === 2 ? 11 : 9;
+    const capSize =
+      photos.length <= 1 ? CAPTION_SIZE.single : photos.length === 2 ? CAPTION_SIZE.stack : CAPTION_SIZE.grid;
+    const captionH = capSize + 12; // 写真の下に確保するキャプション帯
     const content = {
       x: MARGIN,
       y: MARGIN,
@@ -169,10 +191,14 @@ async function buildPdf(album) {
       if (!img) continue;
       const drawn = drawContain(page, img, imgBox);
       photoCount++;
+      const effDpi = Math.round(img.width / (drawn.w / 72));
+      if (effDpi < MIN_DPI_WARN) {
+        warnings.push(`${file} は解像度が低め(約${effDpi}dpi)。印刷で粗く見える可能性があります`);
+      }
       const cap = sanitizeText(caption);
       if (cap) {
         let s = capSize;
-        while (s > 7 && font.widthOfTextAtSize(cap, s) > box.w) s -= 1;
+        while (s > 9 && font.widthOfTextAtSize(cap, s) > box.w) s -= 1;
         const w = font.widthOfTextAtSize(cap, s);
         // キャプションは描画された写真のすぐ下に置く(セル最下部だと写真と離れる)
         const capY = Math.max(box.y, drawn.y - s - 6);
@@ -183,7 +209,7 @@ async function buildPdf(album) {
 
   const bytes = await pdfDoc.save();
   fs.writeFileSync(PDF_PATH, bytes);
-  return { pages: album.pages.length, photoCount, bytes: bytes.length };
+  return { pages: album.pages.length, photoCount, bytes: bytes.length, warnings };
 }
 
 // ---- HTTP ----

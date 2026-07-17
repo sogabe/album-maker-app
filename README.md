@@ -9,11 +9,14 @@
 
 ### 1. 写真を集める
 
-スマホからテーマごとに写真を選び(各テーマ 2〜4 枚、計 16〜24 枚)、AirDrop で Mac へ送って
-このフォルダの `photos/` に入れる。
+スマホからテーマごとに写真を選び(各テーマ 2〜4 枚、計 16〜24 枚)、AirDrop や LINE で
+Mac へ送ってこのフォルダの `photos/` に入れる。
 
 - iPhone の HEIC 写真はそのままで OK(自動で JPEG に変換されます)
-- LINE 経由は画質が落ちるので使わない
+- LINE 経由の写真も使えます。ただし LINE は画像を縮小・再圧縮するため解像度が
+  落ちていることが多く、印刷で粗くなる写真は PDF 書き出し時に警告が表示されます。
+  警告が出た写真は、大写真ページを避けて 2×2 グリッドの小さい枠で使うか、
+  LINE で「オリジナル画質」で送り直す(または AirDrop に切り替える)と改善します
 
 ### 2. アプリを起動する
 
@@ -35,6 +38,12 @@ My Favorites / 裏表紙)がプリセットされています。
 
 レイアウトは写真の枚数で自動的に決まります: 1 枚 = 大写真 / 2 枚 = 上下 2 段 /
 3〜4 枚 = 2×2 グリッド。
+
+PDF のフォントは Mac 同梱のものを埋め込んでいます(タイトル: Arial Rounded Bold、
+キャプション: Bradley Hand)。変えたい場合は `server.js` 冒頭の `TITLE_FONT_FILE` /
+`CAPTION_FONT_FILE` を `/System/Library/Fonts/Supplemental/` 内の別の `.ttf`
+(例: `Chalkduster.ttf`、`Comic Sans MS.ttf`)に差し替え、`TITLE_SIZE` /
+`CAPTION_SIZE` でサイズを調整してください。
 
 ### 4. 印刷する
 

@@ -95,7 +95,8 @@ main { display: flex; gap: 16px; padding: 16px; align-items: flex-start; }
 }
 .page-card .page-no { font-size: 11px; color: #999; }
 .page-card input.title {
-  font-size: 16px;
+  font-family: "Arial Rounded MT Bold", -apple-system, sans-serif;
+  font-size: 18px;
   font-weight: 600;
   border: none;
   border-bottom: 1px dashed #ccc;
@@ -114,7 +115,7 @@ main { display: flex; gap: 16px; padding: 16px; align-items: flex-start; }
   padding: 6px;
 }
 .slot img { width: 64px; height: 64px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
-.slot input.caption { flex: 1; font-size: 12px; border: 1px solid #ddd; border-radius: 4px; padding: 5px 7px; }
+.slot input.caption { flex: 1; font-family: "Bradley Hand", cursive, sans-serif; font-size: 14px; border: 1px solid #ddd; border-radius: 4px; padding: 5px 7px; }
 .slot .mini { padding: 2px 7px; font-size: 12px; }
 .add-photo { align-self: flex-start; }
 .warn { color: #dc2626; font-size: 12px; }
